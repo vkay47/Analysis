@@ -1,0 +1,337 @@
+---
+title: "Statistical Analysis Project Work"
+author: "T00732605 VISHESH KHURANA"
+date: "2023-11-23"
+output: pdf_document
+---
+
+```{r}
+#Libraries
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(car)
+library(tibble)
+```
+
+```{r}
+
+#Reading and Cleaning
+crimerates<- read.csv(file="crime_canada.csv")
+employment<- read.csv(file="Employment_rate.csv")
+
+
+#Employment
+employment<-employment %>% 
+  group_by(month) %>% 
+  filter(sex=="Both sexes", variable=="Employment") %>% 
+  separate(month,into=c("year","month"),sep = "-") %>% 
+  select(-month,-sex) %>% 
+  group_by(year) %>% 
+  summarise(across(everything(), list(mean))) %>% 
+  select(-variable_1) %>% 
+  filter(year>1999 & year<2020) %>%
+  mutate(year=as.numeric(year))
+
+  
+
+colnames(employment)<- c("Year","EM_Alberta","EM_British_Columbia","EM_Manitoba",
+                          "EM_New_Brunswick","EM_Newfoundland_Labrador",
+                          "EM_Nova_Scotia","EM_Ontario","EM_Prince_Edward_Island",
+                          "EM_Quebec","EM_Saskatchewan")
+
+
+
+#CrimeRates
+crimerates<-crimerates %>% 
+  group_by(year,location) %>% 
+  summarise(total_rate_per_100= mean(rate_per_100k)) %>% 
+  rename("Rate_per_100"="total_rate_per_100")
+c("Year","EM_Alberta","EM_British_Columbia","EM_Manitoba",
+                  "EM_New_Brunswick","EM_Newfoundland_Labrador",
+                  "EM_Nova_Scotia","EM_Ontario","EM_Prince_Edward_Island",
+                  "EM_Quebec","EM_Saskatchewan")
+
+crimerates<- crimerates %>%
+  pivot_wider(values_from = Rate_per_100,names_from = location) %>% 
+  filter(1999<year & year<2020)
+
+crimerates<-crimerates[,c(-7,-9,-14)]
+colnames(crimerates)<- (c("Year","CR_Alberta","CR_British_Columbia","CR_Manitoba",
+                  "CR_New_Brunswick","CR_Newfoundland_Labrador",
+                  "CR_Nova_Scotia","CR_Ontario","CR_Prince_Edward_Island",
+                  "CR_Quebec","CR_Saskatchewan"))
+
+final_data<-employment %>% 
+  left_join(crimerates, by="Year") 
+
+
+
+final_data[,c("Year","EM_British_Columbia","CR_British_Columbia")]
+```
+
+
+
+
+
+```{r}
+#Generating Models and Predictions for Provinces
+
+#For Alberta
+
+lm.alberta<- lm(CR_Alberta~EM_Alberta, data=final_data)
+
+ggplot(final_data,aes(CR_Alberta,EM_Alberta)) +
+  geom_point(aes(col=factor(Year)))+
+  geom_smooth(method = "lm")
+
+#For British Columbia
+lm.BC<- lm(CR_British_Columbia~EM_British_Columbia, data=final_data)
+
+summary(lm.BC)
+
+ggplot(final_data,aes(EM_British_Columbia,CR_British_Columbia)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  labs(title="ScatterPlot of Crime Rate and Employment Rate of British Columbia",
+       x="Employment Rate in BC",
+       y="Crime Rate in BC")
+
+BC.pred<-predict(lm.BC,final_data)
+
+
+BC.comparison<-  data.frame(BC_Actual_Values=final_data$CR_British_Columbia,
+                         BC_Predicted_Values=BC.pred)
+
+summary(BC.comparison)
+
+Error<- data.frame(RMSE=sqrt(mean((BC.comparison$BC_Predicted_Values-BC.comparison$BC_Actual_Values)**2)/nrow(BC.comparison)),
+                   SSE=sum((BC.comparison$BC_Predicted_Values-BC.comparison$BC_Actual_Values)**2)) 
+
+Error #Calculated Error of Predicted vs Acutal Values
+
+#For Manitoba
+lm.Manitoba<- lm(CR_Manitoba~EM_Manitoba, data=final_data)
+
+summary(lm.Manitoba)
+
+ggplot(final_data,aes(CR_Manitoba,EM_Manitoba)) +
+  geom_point(aes(col=factor(Year)))+
+  geom_smooth(method="lm")
+
+#For Nova Scotia
+lm.NS<- lm(CR_Nova_Scotia~EM_Nova_Scotia, data=final_data)
+
+summary(lm.NS)
+
+ggplot(final_data,aes(EM_Nova_Scotia,CR_Nova_Scotia)) +
+  geom_point(aes(col=factor(Year))) +
+  geom_smooth(method = "lm")
+
+NS.pred<-predict(lm.NS,final_data)
+NS.pred
+
+NS.comparison<-  data.frame(NS_Actual_Values=final_data$CR_Nova_Scotia,
+                         NS_Predicted_Values=NS.pred)
+
+```
+#Assumptions Check
+```{r}
+
+cor(final_data$CR_British_Columbia,final_data$EM_British_Columbia)
+
+
+#1 Linearity
+plot(lm.BC$residuals)
+abline(h=0,col="blue")
+
+plot(final_data$CR_British_Columbia,final_data$EM_British_Columbia)
+#Can be expressed as a linear model but other models might be a better fit.
+
+plot(lm.NS$residuals)
+
+plot(final_data$EM_Nova_Scotia,final_data$CR_Nova_Scotia)
+#Same for this
+
+
+#2 Normal 
+
+shapiro.test(rstandard(lm.BC))
+#Normal
+
+#3
+ncvTest(lm.BC)
+
+
+```
+
+```{r}
+OntarioHomes<- read.csv("OntarioHomes.csv")
+
+OntarioHomes<- OntarioHomes[,c(2,3,4,6)]
+head(OntarioHomes)
+
+lm_Homes<- lm(Price~Beds+Bath+Sq.Ft,data=OntarioHomes)
+lm_Homes<-lm_Homes
+
+
+summary(lm_Homes)
+
+House.pred<-predict(lm_Homes,OntarioHomes)
+
+House.comparison<-  data.frame(House_Price_Actual=OntarioHomes$Price,
+                         House_Price_Predicted=House.pred)
+
+House.comparison
+
+
+
+
+#1 Linearity
+plot(lm.BC$residuals)
+abline(h=0,col="red")
+
+plot(final_data$CR_British_Columbia,final_data$EM_British_Columbia)
+#Can be expressed as a linear model but other models might be a better fit.
+
+
+#2 Normal 
+
+shapiro.test(rstandard(lm_Homes))
+#Normal
+
+#3
+ncvTest(lm_Homes)
+
+durbinWatsonTest(lm_Homes)
+
+```
+
+
+
+
+## DRAFT WORK
+
+```{r}
+
+income<- read.csv("canada_per_capita_income.csv")
+bc.crime<- read.csv("bccrime.csv")
+
+#MEAN INCOME
+income<- income %>% 
+  filter(GEO=="British Columbia" & (REF_DATE>2011 & REF_DATE<2020)) %>% 
+  select(REF_DATE,Average.income..excluding.zeros.,
+         Median.income..excluding.zeros.) 
+  
+
+colnames(income)<- c("Year", "Mean Income","Median Income")
+
+
+#PROPERTY CRIME
+
+bc.crime<- bc.crime %>% 
+  t() %>% 
+  as.data.frame()
+
+colnames(bc.crime)<- bc.crime[1,]
+bc.crime<- bc.crime[-1,]
+
+
+prop.crime<- bc.crime[,c(grep("Total property offences",colnames(bc.crime)))]
+
+prop.crime<- data.frame(Year=c("2012","2013","2014","2015","2016",
+                        "2017","2018","2019","2020","2021"),
+                      Type_of_Crime=prop.crime)
+
+colnames(prop.crime)<- c("Year", "Total_Property_Offences")
+prop.crime$Year<- as.numeric(prop.crime$Year)
+
+prop.crime<- prop.crime %>% 
+  filter(Year<2020)
+
+colnames(income)[c(2,3)]<-c("Mean_Income","Median_Income") 
+
+final_data.2<- left_join(income,prop.crime, by="Year")
+
+final_data.2$Total_Property_Offences <- as.numeric(gsub(",","",final_data.2$Total_Property_Offences))
+
+
+```
+
+
+```{r}
+bc.unemploy<- read.csv("UnemploymentBC.csv")
+
+bc.unemploy<- bc.unemploy[-1,]
+rownames(bc.unemploy)<- NULL
+
+colnames(bc.unemploy)[2]<- "Unemployment_Per"
+
+#VIOLENT CRIME
+vio.crime<- bc.crime[,c(grep("Total violent offences",colnames(bc.crime)))]
+
+vio.crime<- data.frame(Year=c("2012","2013","2014","2015","2016",
+                        "2017","2018","2019","2020","2021"),
+                      Type_of_Crime=vio.crime)
+
+colnames(vio.crime)<- c("Year", "Total_Violent_Offences")
+vio.crime$Year<- as.numeric(vio.crime$Year)
+
+vio.crime<- vio.crime %>% 
+  filter(Year<2020) 
+
+final_data.3<- left_join(vio.crime,bc.unemploy)
+
+final_data.3$Total_Violent_Offences <- as.numeric(gsub(",","",final_data.3$Total_Violent_Offences))
+
+head(final_data.3)
+
+data.frame(final_data.2$Total_Property_Offences,final_data.3$Total_Violent_Offences)
+
+#Test of Property Offences and Violent Offences
+cor.test(final_data.2$Total_Property_Offences,final_data.3$Total_Violent_Offences,
+         method="pearson")
+```
+
+
+
+
+```{r}
+
+per_capita_income<- read.csv("Canada_per_capita_income.csv")
+per_capita_income
+
+per_capita_income<- per_capita_income %>% 
+  group_by(REF_DATE,GEO) %>%  
+  select(REF_DATE,Average.income..excluding.zeros.) %>% 
+  pivot_wider(values_from = Average.income..excluding.zeros., names_from = GEO )
+
+
+colnames(per_capita_income)<- c("Year","IN_Alberta","IN_British_Columbia",
+                                "IN_Canada","IN_Manitoba","IN_New_Brunswick",
+                                 "IN_Newfoundland_Labrador",
+                        "IN_Nova_Scotia","IN_Ontario","IN_Prince_Edward_Island",
+                          "IN_Quebec","IN_Saskatchewan")
+
+per_capita_income<- per_capita_income[,c(1,2,3,5,6,7,8,9,10,11,12,4)]
+
+lm_pci<- lm(IN_Canada~.-Year,data = per_capita_income)
+
+summary(lm_pci)
+
+lm_pci$coefficients
+
+lm_pci.pred<- predict(lm_pci,per_capita_income)
+
+pci.comparison<-  data.frame(Canada_PCI_Actual=per_capita_income$IN_Canada,
+                         Canada_PCI_Predicted=lm_pci.pred)
+
+
+pci.comparison
+
+```
+
+
+
+
+
